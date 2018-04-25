@@ -60,6 +60,7 @@ int CImuBlam::ReadFile(std::string szFilePathName)
 	if (m_Data.size() <= 0)
 	{
 		cout << "m_PoseList.size() <= 0" << endl;
+		getchar();
 		return -1;
 	}
 
@@ -101,7 +102,7 @@ int CImuBlam::GetDataByTime(uint64_t nTime, GnssData& data)
 			data.dRoll = dP0*data0.dRoll + dP1*data1.dRoll;
 			data.dPitch = dP0*data0.dPitch + dP1*data1.dPitch;
 			data.dHeading = dP0*data0.dHeading + dP1*data1.dHeading;
-			Eigen::Quaterniond q0(data0.qw, data0.qx, data0.qy, data0.qz);//²åÖµ
+			Eigen::Quaterniond q0(data0.qw, data0.qx, data0.qy, data0.qz);//ï¿½ï¿½Öµ
 			Eigen::Quaterniond q1(data1.qw, data1.qx, data1.qy, data1.qz);//
 			Eigen::Quaterniond qres = q0.slerp(dP1, q1);
 			data.qw = qres.w();

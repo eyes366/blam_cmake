@@ -1,3 +1,4 @@
+#include <float.h>
 #include "PointCloudMapper.h"
 //#include <parameter_utils/ParameterUtils.h>
 #include <parameter_utils/slamBase.h>

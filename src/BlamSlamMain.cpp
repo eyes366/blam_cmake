@@ -10,7 +10,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/filters/voxel_grid.h>
-// ÀàÐÍ¶¨Òå
+// ï¿½ï¿½ï¿½Í¶ï¿½ï¿½ï¿½
 #include <geometry_utils/Transform3.h>
 //#include <parameter_utils/ParameterUtils.h>
 #include<sstream>
@@ -33,7 +33,7 @@ std::vector<LaserLoopClosure::ConstraitLine> g_LoopLines;
 
 CVelodyneOpr g_VelOpr;
 
-std::string itos(int i)   // ½«int ×ª»»³Éstring 
+std::string itos(int i)   // ï¿½ï¿½int ×ªï¿½ï¿½ï¿½ï¿½string 
 {
 	std::stringstream s;
 	s << i;
@@ -74,7 +74,7 @@ void viewerPsycho(pcl::visualization::PCLVisualizer& viewer)
 	{
 		char szItem[1024] = { 0 };
 		sprintf(szItem, "Line%d", i);
-		if (viewer.contains(szItem))
+//		if (viewer.contains(szItem))
 		{
 			viewer.removeShape(szItem);
 		}
@@ -99,7 +99,7 @@ void viewerPsycho(pcl::visualization::PCLVisualizer& viewer)
 			cam.view[0], cam.view[1], cam.view[2]);
 	}
 
-	if (viewer.contains("m_closureCondidates"))
+//	if (viewer.contains("m_closureCondidates"))
 	{
 		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3.0, "m_closureCondidates");
 	}

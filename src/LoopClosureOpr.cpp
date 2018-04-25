@@ -19,7 +19,7 @@ LoopClosureOpr::LoopClosureOpr():
 {
 	pcl::visualization::CloudViewer::VizCallable callback0 = 
 		boost::bind(&LoopClosureOpr::viewerPsycho, this, _1);
-//	m_viewer.runOnVisualizationThread(callback0);
+	m_viewer.runOnVisualizationThread(callback0);
 
 	m_viewer.registerKeyboardCallback(key_callback, this);
 
@@ -35,23 +35,23 @@ LoopClosureOpr::~LoopClosureOpr()
 
 void LoopClosureOpr::viewerPsycho(pcl::visualization::PCLVisualizer& viewer)
 {
-// 	std::vector<LaserLoopClosure::ConstraitLine>& LoopLines = m_LaserLoopClosureOpr.m_LoopLines;
-// 	for (unsigned int i = 0; i < LoopLines.size(); i++)
-// 	{
-// 		char szItem[1024] = { 0 };
-// 		sprintf(szItem, "Line%d", i);
+ 	std::vector<LaserLoopClosure::ConstraitLine>& LoopLines = m_LaserLoopClosureOpr.m_LoopLines;
+ 	for (unsigned int i = 0; i < LoopLines.size(); i++)
+ 	{
+ 		char szItem[1024] = { 0 };
+ 		sprintf(szItem, "Line%d", i);
 // 		if (viewer.contains(szItem))
-// 		{
-// 			viewer.removeShape(szItem);
-// 		}
-// 		viewer.addLine<pcl::PointXYZ, pcl::PointXYZ>(LoopLines[i].first, LoopLines[i].second,
-// 			0.0, 255.0, 0.0, szItem);
-// 	}
+ 		{
+ 			viewer.removeShape(szItem);
+ 		}
+ 		viewer.addLine<pcl::PointXYZ, pcl::PointXYZ>(LoopLines[i].first, LoopLines[i].second,
+ 			0.0, 255.0, 0.0, szItem);
+ 	}
 
 // 	if (viewer.contains("m_closureCondidates"))
-// 	{
-// 		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3.0, "m_closureCondidates");
-// 	}
+ 	{
+ 		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3.0, "m_closureCondidates");
+ 	}
 }
 
 int LoopClosureOpr::ReadData(std::string szDataPath)
@@ -149,7 +149,7 @@ bool LoopClosureOpr::HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::P
  	if (!m_LaserLoopClosureOpr.AddBetweenFactor(deltaRT,
  		covariance, &pose_key))
 	{
-		return false;				//Î´´ïµ½¹Ø¼üÖ¡Ôö¼ÓÌõ¼þ
+		return false;				//Î´ï¿½ïµ½ï¿½Ø¼ï¿½Ö¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	}
 	*new_keyframe = true;
 //	cout << "Key frame detected!" << endl;

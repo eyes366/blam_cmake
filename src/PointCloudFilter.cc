@@ -73,7 +73,7 @@ bool PointCloudFilter::Filter(const PointCloud::ConstPtr& points,
 	pcl::PointCloud<pcl::PointXYZI>::Ptr ptOut(new pcl::PointCloud<pcl::PointXYZI>);
 	m_Log << "save points_filtered" << endl;
 	m_Log.flush();
-	pcl::io::savePCDFileBinary("points_filtered.pcd", *points_filtered);
+//	pcl::io::savePCDFileBinary("points_filtered.pcd", *points_filtered);
 	m_Log << "filter start" << endl;
 	m_Log.flush();
     random_filter.filter(*ptOut);

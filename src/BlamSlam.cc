@@ -69,7 +69,7 @@ bool BlamSlam::HandleLoopClosures(const PointCloud::ConstPtr& scan,
 	if (!loop_closure_.AddBetweenFactor(localization_.GetIncrementalEstimate(),
 		covariance,&pose_key)) 
 	{
-		return false;				//Î´´ïµ½¹Ø¼üÖ¡Ôö¼ÓÌõ¼þ
+		return false;				//Î´ï¿½ïµ½ï¿½Ø¼ï¿½Ö¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	}
 	*new_keyframe = true;
 
@@ -103,7 +103,7 @@ void BlamSlam::SaveTrackAndMap(const PointCloud::ConstPtr& msg)
 	geometry_utils::Rotation3 R = pose.rotation;
 	static int g_nKeyInd = 0;
 	char szLog[1024] = { 0 };
-	sprintf_s(szLog, 1024, "%d %lld %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f\n",
+	sprintf(szLog, "%d %lld %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f %.7f\n",
 		g_nKeyInd, msg->header.stamp,
 		R(0, 0), R(0, 1), R(0, 2), T(0),
 		R(1, 0), R(1, 1), R(1, 2), T(1),
@@ -111,7 +111,7 @@ void BlamSlam::SaveTrackAndMap(const PointCloud::ConstPtr& msg)
 		0.0, 0.0, 0.0, 1.0);
 	m_fInterMediaFilePath << szLog;
 	m_fInterMediaFilePath.flush();
-	sprintf_s(szLog, "%s%06d.pcd", m_szLogPath.c_str(), g_nKeyInd);
+	sprintf(szLog, "%s%06d.pcd", m_szLogPath.c_str(), g_nKeyInd);
 	pcl::io::savePCDFileBinary(szLog, */*msg_filtered*/msg);
 
 	g_nKeyInd++;
@@ -131,7 +131,7 @@ void BlamSlam::ProcessPointCloudMessage(const PointCloud::ConstPtr& msg)
 	m_Log << "Filter" << (double)(t1 - t0) / CLOCKS_PER_SEC << "s" << endl;
 
 	if (!odometry_.UpdateEstimate(*msg_filtered)) {
-		PointCloud::Ptr unused(new PointCloud);				//odometry_Ã»ÓÐ³õÊ¼»¯ºÃ
+		PointCloud::Ptr unused(new PointCloud);				//odometry_Ã»ï¿½Ð³ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½
 		mapper_.InsertPoints(msg_filtered, unused.get());
 		loop_closure_.AddKeyScanPair(0, /*msg_filtered*/msg);
 		return;
@@ -159,7 +159,7 @@ void BlamSlam::ProcessPointCloudMessage(const PointCloud::ConstPtr& msg)
 	bool new_keyframe = false;
 //	cout << "new_keyframe" << new_keyframe << endl;
 	if (HandleLoopClosures(/*msg_filtered*/msg, &new_keyframe))
-	{												//Èç¹ûÕÒµ½±Õ»·
+	{												//ï¿½ï¿½ï¿½ï¿½Òµï¿½ï¿½Õ»ï¿½
 		m_Log << "have found Loop Closures!\n" << endl;
 		printf("have found Loop Closures!\n");
 		PointCloud::Ptr regenerated_map(new PointCloud);
@@ -172,7 +172,7 @@ void BlamSlam::ProcessPointCloudMessage(const PointCloud::ConstPtr& msg)
 		localization_.SetIntegratedEstimate(loop_closure_.GetLastPose());
 	}
 	else {					
-		if (new_keyframe) {							//Èç¹ûÃ»ÓÐÕÒµ½±Õ»·£¬µ«ÊÇ³ö·¢ÁË¹Ø¼üÖ¡
+		if (new_keyframe) {							//ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½Òµï¿½ï¿½Õ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç³ï¿½ï¿½ï¿½ï¿½Ë¹Ø¼ï¿½Ö¡
 			localization_.MotionUpdate(gu::Transform3::Identity());
 			localization_.TransformPointsToFixedFrame(*/*msg_filtered*/msg, msg_fixed.get());
 			PointCloud::Ptr unused(new PointCloud);
@@ -202,7 +202,7 @@ void BlamSlam::ProcessPointCloudMessage(const PointCloud::ConstPtr& msg)
 
 
 }
-std::string BlamSlam::itos(int i)   // ½«int ×ª»»³Éstring 
+std::string BlamSlam::itos(int i)   // ï¿½ï¿½int ×ªï¿½ï¿½ï¿½ï¿½string 
 {
 	std::stringstream s;
 	s << i;

@@ -257,8 +257,9 @@ bool LaserLoopClosure::FindLoopClosures(
 
 //		getchar();
 		cout << "update start" << endl;
-        isam_->update(new_factor, Values(), gtsam::FactorIndices(),
-			boost::none, boost::none, boost::none, true);
+//        isam_->update(new_factor, Values(), gtsam::FactorIndices(),
+//			boost::none, boost::none, boost::none, true);
+        isam_->update(new_factor, Values());
 		cout << "update end" << endl;
 		m_Log << "update end:" << other_key << endl;
 		m_Log.flush();
