@@ -26,6 +26,7 @@ LaserLoopClosure::LaserLoopClosure()
     : key_(0), last_closure_key_(std::numeric_limits<int>::min()) 
 {
 	m_Log.open("LaserLoopClosure.log");
+    m_bIsLoopInfoUpdate = false;
 }
 
 LaserLoopClosure::~LaserLoopClosure() {}
@@ -147,6 +148,61 @@ bool LaserLoopClosure::LoadParameters() {
 	return true;
 }
 
+int LaserLoopClosure::UpdateDispInfo()
+{
+    m_track.clear();
+    for (const auto& keyed_pose : values_)
+    {
+        const unsigned int key = keyed_pose.key;
+
+        if (!keyed_scans_.count(key))
+            continue;
+        if (key == 0)
+            continue;
+
+        Pose3 pose_now = values_.at<Pose3>(key);
+        pcl::PointXYZRGB pt;
+        pt.x = float(pose_now.translation().x());
+        pt.y = float(pose_now.translation().y());
+        pt.z = float(pose_now.translation().z());
+        pt.r = 255;
+        pt.g = 0;
+        pt.b = 0;
+        m_track.push_back(pt);
+    }
+    m_LoopLines.clear();
+    for (unsigned int i = 0; i < loop_edges_.size(); i++)
+    {
+        const gu::Transform3 pose1 = ToGu(values_.at<Pose3>(loop_edges_[i].first));
+        const gu::Transform3 pose2 = ToGu(values_.at<Pose3>(loop_edges_[i].second));
+        pcl::PointXYZ pt0, pt1;
+        pt0.x = pose1.translation(0);
+        pt0.y = pose1.translation(1);
+        pt0.z = pose1.translation(2);
+        pt1.x = pose2.translation(0);
+        pt1.y = pose2.translation(1);
+        pt1.z = pose2.translation(2);
+        m_LoopLines.push_back(std::make_pair(pt0, pt1));
+    }
+    m_gravityLocate.clear();
+    for (unsigned int i = 0; i < m_gravityInds.size(); i++)
+    {
+        const gu::Transform3 pose = ToGu(values_.at<Pose3>(m_gravityInds[i]));
+        m_gravityLocate.push_back(pose);
+
+//        Pose3 pose_now = values_.at<Pose3>(m_gravityInds[i]);
+//        pcl::PointXYZRGB pt;
+//        pt.x = float(pose_now.translation().x());
+//        pt.y = float(pose_now.translation().y());
+//        pt.z = float(pose_now.translation().z());
+//        pt.r = 0;
+//        pt.g = 255;
+//        pt.b = 255;
+//        m_track.push_back(pt);
+    }
+    m_bIsLoopInfoUpdate = true;
+}
+
 #include <gtsam/nonlinear/Marginals.h>
 
 bool LaserLoopClosure::AddGravityFactor(const gu::Transform3& delta,
@@ -203,6 +259,7 @@ bool LaserLoopClosure::AddGravityFactor(const gu::Transform3& delta,
   static gtsam::SharedNoiseModel model3D(gtsam::noiseModel::Isotropic::Sigma(2, 0.004));
   gtsam::BearingFactor<Pose3, Pose3> factor3D(key_, 0, measurement3D, model3D);
   new_factor.add(factor3D);
+  m_gravityInds.push_back(key_);
 
   // Update ISAM2.
 //  cout << "update start" << endl;
@@ -210,10 +267,16 @@ bool LaserLoopClosure::AddGravityFactor(const gu::Transform3& delta,
 //  cout << "update end" << endl;
   values_ = isam_->calculateEstimate();
 
-  Eigen::Matrix<double, 6, 6> error = isam_->marginalCovariance(key_);
-  cout << "error:" << endl << error  << endl;
-  gtsam::VectorValues vvs = isam_->getDelta();
-  cout << "error1: " << isam_->error(vvs) << endl;
+
+//  NonlinearFactorGraph graph =  isam_->getFactorsUnsafe();
+//  double dError =  graph.error(values_);
+//  graph.printErrors(values_);
+//  cout << "dError: " << dError << endl;
+//  gtsam::Marginals marginals(graph, values_);
+//  cout.precision(2);
+//  marginals.print();
+//  cout << "marginals.marginalCovariance(key_):" << endl << marginals.marginalCovariance(key_) << endl;
+//  marginals.marginalFactor(key_)->print();
 
 //  values_.insert(new_value);
   gtsam::Pose3 aa = values_.at<gtsam::Pose3>(key_);
@@ -241,40 +304,7 @@ bool LaserLoopClosure::AddGravityFactor(const gu::Transform3& delta,
 //      odometry_ = Pose3::identity();
 //      return true;
 //  }
-  m_track.clear();
-  for (const auto& keyed_pose : values_)
-  {
-      const unsigned int key = keyed_pose.key;
-
-      if (!keyed_scans_.count(key))
-          continue;
-      if (key == 0)
-          continue;
-
-      Pose3 pose_now = values_.at<Pose3>(key);
-      pcl::PointXYZRGB pt;
-      pt.x = float(pose_now.translation().x());
-      pt.y = float(pose_now.translation().y());
-      pt.z = float(pose_now.translation().z());
-      pt.r = 255;
-      pt.g = 0;
-      pt.b = 0;
-      m_track.push_back(pt);
-  }
-  m_LoopLines.clear();
-  for (unsigned int i = 0; i < loop_edges_.size(); i++)
-  {
-      const gu::Transform3 pose1 = ToGu(values_.at<Pose3>(loop_edges_[i].first));
-      const gu::Transform3 pose2 = ToGu(values_.at<Pose3>(loop_edges_[i].second));
-      pcl::PointXYZ pt0, pt1;
-      pt0.x = pose1.translation(0);
-      pt0.y = pose1.translation(1);
-      pt0.z = pose1.translation(2);
-      pt1.x = pose2.translation(0);
-      pt1.y = pose2.translation(1);
-      pt1.z = pose2.translation(2);
-      m_LoopLines.push_back(std::make_pair(pt0, pt1));
-  }
+  UpdateDispInfo();
 
     getchar();
   return false;
@@ -456,40 +486,41 @@ bool LaserLoopClosure::FindLoopClosures(
 
   if (closed_loop)
   {
-	  m_track.clear();
-	  for (const auto& keyed_pose : values_) 
-	  {
-		  const unsigned int key = keyed_pose.key;
+      UpdateDispInfo();
+//	  m_track.clear();
+//	  for (const auto& keyed_pose : values_)
+//	  {
+//		  const unsigned int key = keyed_pose.key;
 
-		  if (!keyed_scans_.count(key))
-			  continue;
-          if (key == 0)
-              continue;
+//		  if (!keyed_scans_.count(key))
+//			  continue;
+//          if (key == 0)
+//              continue;
 
-		  Pose3 pose_now = values_.at<Pose3>(key);
-		  pcl::PointXYZRGB pt;
-		  pt.x = float(pose_now.translation().x());
-		  pt.y = float(pose_now.translation().y());
-		  pt.z = float(pose_now.translation().z());
-		  pt.r = 255;
-		  pt.g = 0;
-		  pt.b = 0;
-		  m_track.push_back(pt);
-	  }
-	  m_LoopLines.clear();
-	  for (unsigned int i = 0; i < loop_edges_.size(); i++)
-	  {
-		  const gu::Transform3 pose1 = ToGu(values_.at<Pose3>(loop_edges_[i].first));
-		  const gu::Transform3 pose2 = ToGu(values_.at<Pose3>(loop_edges_[i].second));
-		  pcl::PointXYZ pt0, pt1;
-		  pt0.x = pose1.translation(0);
-		  pt0.y = pose1.translation(1);
-		  pt0.z = pose1.translation(2);
-		  pt1.x = pose2.translation(0);
-		  pt1.y = pose2.translation(1);
-		  pt1.z = pose2.translation(2);
-		  m_LoopLines.push_back(std::make_pair(pt0, pt1));
-	  }
+//		  Pose3 pose_now = values_.at<Pose3>(key);
+//		  pcl::PointXYZRGB pt;
+//		  pt.x = float(pose_now.translation().x());
+//		  pt.y = float(pose_now.translation().y());
+//		  pt.z = float(pose_now.translation().z());
+//		  pt.r = 255;
+//		  pt.g = 0;
+//		  pt.b = 0;
+//		  m_track.push_back(pt);
+//	  }
+//	  m_LoopLines.clear();
+//	  for (unsigned int i = 0; i < loop_edges_.size(); i++)
+//	  {
+//		  const gu::Transform3 pose1 = ToGu(values_.at<Pose3>(loop_edges_[i].first));
+//		  const gu::Transform3 pose2 = ToGu(values_.at<Pose3>(loop_edges_[i].second));
+//		  pcl::PointXYZ pt0, pt1;
+//		  pt0.x = pose1.translation(0);
+//		  pt0.y = pose1.translation(1);
+//		  pt0.z = pose1.translation(2);
+//		  pt1.x = pose2.translation(0);
+//		  pt1.y = pose2.translation(1);
+//		  pt1.z = pose2.translation(2);
+//		  m_LoopLines.push_back(std::make_pair(pt0, pt1));
+//	  }
   }
 
   return closed_loop;
