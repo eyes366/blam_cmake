@@ -92,5 +92,18 @@ add_executable(BlamLoopDetect 		./src/LoopDetectMain.cpp
 									./src/ImuBlam.h
 									./include/parameter_utils/slamBase.h
 									./src/slamBase.cc
+                                                                        ./src/IMUFile.h
+                                                                        ./src/EncoderFileParse.cpp
+                                                                        ./src/EncoderFileParse.h
 									)
 target_link_libraries (BlamLoopDetect ${PCL_LIBRARIES} ${PCAP_LIBRARIES} gtsam)
+
+add_executable(ManualLoopDetect ./src/ManualLoopDetect.cpp
+                                ./src/IMUFile.h
+                                ./src/EncoderFileParse.cpp
+                                ./src/EncoderFileParse.h
+                                ./src/ImuBlam.cpp
+                                ./src/ImuBlam.h
+                                ./src/ManualLoopDetector.h
+                                ./src/ManualLoopDetector.cpp)
+target_link_libraries(ManualLoopDetect gtsam)

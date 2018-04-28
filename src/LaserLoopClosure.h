@@ -14,6 +14,7 @@
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/slam/BearingFactor.h>
 
 #include "PointCloudFilter.h"
 #include <pcl/point_cloud.h>
@@ -42,6 +43,10 @@ class LaserLoopClosure {
   void PublishPoseGraph();
 
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr GetTrack();
+
+  bool AddGravityFactor(const geometry_utils::Transform3& delta,
+                        const Mat66& covariance, unsigned int* key,
+                        geometry_utils::Vec3d gravity);
 
  private:
   bool LoadParameters();

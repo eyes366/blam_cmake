@@ -16,7 +16,7 @@ public:
 
 	int StartLoopDetect();
 
-private:
+public:
 	void viewerPsycho(pcl::visualization::PCLVisualizer& viewer);
 	bool HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::Ptr& scan,
 		bool* new_keyframe);
@@ -27,4 +27,6 @@ private:
 	Eigen::Matrix4d m_PosePre;
 	Eigen::Matrix4d m_PoseNow;
 	unsigned int m_nInd;
+    std::vector<std::vector<double> > m_GravityDatas;
+    int m_nGravityInd;
 };

@@ -10,7 +10,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/filters/voxel_grid.h>
-// 锟斤拷锟酵讹拷锟斤拷
+// ���Ͷ���
 #include <geometry_utils/Transform3.h>
 //#include <parameter_utils/ParameterUtils.h>
 #include<sstream>
@@ -33,7 +33,7 @@ std::vector<LaserLoopClosure::ConstraitLine> g_LoopLines;
 
 CVelodyneOpr g_VelOpr;
 
-std::string itos(int i)   // 锟斤拷int 转锟斤拷锟斤拷string 
+std::string itos(int i)   // ��int ת����string 
 {
 	std::stringstream s;
 	s << i;

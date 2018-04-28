@@ -1,4 +1,5 @@
 #include <fstream>
+#include <ctime>
 #include <boost/algorithm/string.hpp>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
@@ -19,13 +20,14 @@ LoopClosureOpr::LoopClosureOpr():
 {
 	pcl::visualization::CloudViewer::VizCallable callback0 = 
 		boost::bind(&LoopClosureOpr::viewerPsycho, this, _1);
-	m_viewer.runOnVisualizationThread(callback0);
+    m_viewer.runOnVisualizationThread(callback0);
 
 	m_viewer.registerKeyboardCallback(key_callback, this);
 
 	m_LaserLoopClosureOpr.Initialize();
 
 	m_nInd = 0;
+    m_nGravityInd = 0;
 }
 
 LoopClosureOpr::~LoopClosureOpr()
@@ -64,10 +66,40 @@ int LoopClosureOpr::ReadData(std::string szDataPath)
 
 	m_PoseDataOpr.ReadFile(m_szDataPath);
 
+    ifstream fs;
+    fs.open("/home/xinzi/opensource/blam_/build-trunk-Desktop-Release/GravityPose.txt");
+    string szLine;
+    while(getline(fs, szLine))
+    {
+        vector<double> dataT;
+        vector<string> vecStr;
+        boost::split(vecStr, szLine, boost::is_any_of(","));
+        if (vecStr.size() < 4)
+        {
+            break;
+        }
+        double dd;
+        dd = atof(vecStr[0].c_str());
+        dataT.push_back(dd);
+        dd = atof(vecStr[1].c_str());
+        dataT.push_back(dd);
+        dd = atof(vecStr[2].c_str());
+        dataT.push_back(dd);
+        dd = atof(vecStr[3].c_str());
+        dataT.push_back(dd);
+        m_GravityDatas.push_back(dataT);
+        cout << dataT[0] << "," << dataT[1] << "," << dataT[2] << "," << dataT[3] << endl;
+    }
+
+    if (m_GravityDatas.size() <= 0)
+    {
+        cout << "No gravity data!" << endl;
+    }
+
+//    getchar();
+
 	return 1;
 }
-
-#include <ctime>
 
 int LoopClosureOpr::StartLoopDetect()
 {
@@ -79,7 +111,7 @@ int LoopClosureOpr::StartLoopDetect()
 	PointCloud<PointXYZI>::Ptr pc_all(new PointCloud<PointXYZI>);
 	for (m_nInd = 0; m_nInd < m_PoseDataOpr.m_Data.size(); m_nInd++)
 	{
-		cout << "Frame: " << m_nInd << endl;
+//		cout << "Frame: " << m_nInd << endl;
 		clock_t t0 = clock();
 
 		GnssData PoseData = m_PoseDataOpr.m_Data[m_nInd];
@@ -88,9 +120,11 @@ int LoopClosureOpr::StartLoopDetect()
 		char szPcdPath[1024] = { 0 };
 		sprintf(szPcdPath, "%s%06d.pcd", m_szDataPath.c_str(), m_nInd);
 		pcl::io::loadPCDFile(szPcdPath, *pc);
+        pc->header.seq = m_nInd;
+        pc->header.stamp = uint64_t(PoseData.dSecInWeek);
 
 		clock_t t1 = clock();
-		cout << "Load pcd" << (double)(t1 - t0) / CLOCKS_PER_SEC << "s" << endl;
+//		cout << "Load pcd" << (double)(t1 - t0) / CLOCKS_PER_SEC << "s" << endl;
 
 // 		PointCloud<PointXYZI>::Ptr pc_(new PointCloud<PointXYZI>);
 // 		pcl::transformPointCloud(*pc, *pc_, pose.cast<float>().matrix());
@@ -107,13 +141,13 @@ int LoopClosureOpr::StartLoopDetect()
 		}
 
 		clock_t t2 = clock();
-		cout << "HandleLoopClosures" << (double)(t2 - t1) / CLOCKS_PER_SEC << "s" << endl;
+//		cout << "HandleLoopClosures" << (double)(t2 - t1) / CLOCKS_PER_SEC << "s" << endl;
 		
 		m_viewer.showCloud(m_LaserLoopClosureOpr.GetTrack()->makeShared(), "track");
 		m_viewer.showCloud(m_LaserLoopClosureOpr.m_closureCondidates.makeShared(), "m_closureCondidates");
 
 		clock_t t3 = clock();
-		cout << "showCloud" << (double)(t3 - t2) / CLOCKS_PER_SEC << "s" << endl;
+//		cout << "showCloud" << (double)(t3 - t2) / CLOCKS_PER_SEC << "s" << endl;
 
 		m_PosePre = m_PoseNow;//update pose
 	}
@@ -146,6 +180,22 @@ bool LoopClosureOpr::HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::P
 							delta(1, 0), delta(1, 1), delta(1, 2), 
 							delta(2, 0), delta(2, 1), delta(2, 2));
 	geometry_utils::Transform3 deltaRT(T, R);
+
+    if (m_nGravityInd >= 0 && m_nGravityInd < m_GravityDatas.size())
+    {
+        double dTime = m_GravityDatas[m_nGravityInd][0];
+        if (scan->header.stamp >= dTime)
+        {
+            geometry_utils::Vec3d gravity(m_GravityDatas[m_nGravityInd][1],
+                    m_GravityDatas[m_nGravityInd][2],m_GravityDatas[m_nGravityInd][3]);
+            m_LaserLoopClosureOpr.AddGravityFactor(deltaRT,
+                                                   covariance, &pose_key,gravity);
+            printf("Time:%lld\n", scan->header.stamp);
+            m_nGravityInd++;
+            return false;
+        }
+    }
+
  	if (!m_LaserLoopClosureOpr.AddBetweenFactor(deltaRT,
  		covariance, &pose_key))
 	{
@@ -155,7 +205,7 @@ bool LoopClosureOpr::HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::P
 //	cout << "Key frame detected!" << endl;
 
 	clock_t t1 = clock();
-	cout << "AddBetweenFactor" << (double)(t1 - t0) / CLOCKS_PER_SEC << "s" << endl;
+//	cout << "AddBetweenFactor" << (double)(t1 - t0) / CLOCKS_PER_SEC << "s" << endl;
 
 	if (!m_LaserLoopClosureOpr.AddKeyScanPair(pose_key, scan)) {
 		return false;
@@ -163,7 +213,9 @@ bool LoopClosureOpr::HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::P
 //	cout << "Key frame added!" << endl;
 
 	clock_t t2 = clock();
-	cout << "AddKeyScanPair" << (double)(t2 - t1) / CLOCKS_PER_SEC << "s" << endl;
+//	cout << "AddKeyScanPair" << (double)(t2 - t1) / CLOCKS_PER_SEC << "s" << endl;
+
+//    return false;
 
 	std::vector<unsigned int> closure_keys;
 	if (!m_LaserLoopClosureOpr.FindLoopClosures(pose_key, &closure_keys))
@@ -172,7 +224,7 @@ bool LoopClosureOpr::HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::P
 	}
 
 	clock_t t3 = clock();
-	cout << "FindLoopClosures" << (double)(t3 - t2) / CLOCKS_PER_SEC << "s" << endl;
+//	cout << "FindLoopClosures" << (double)(t3 - t2) / CLOCKS_PER_SEC << "s" << endl;
 
 	for (const auto& closure_key : closure_keys)
 	{

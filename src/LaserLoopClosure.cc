@@ -20,6 +20,8 @@ using gtsam::Vector;
 using gtsam::Vector3;
 using gtsam::Vector6;
 
+gtsam::Point3 g_ptEarthCore(0.0, 0.0, -6400000.0);
+
 LaserLoopClosure::LaserLoopClosure()
     : key_(0), last_closure_key_(std::numeric_limits<int>::min()) 
 {
@@ -97,6 +99,22 @@ bool LaserLoopClosure::LoadParameters() {
 	isam_.reset(new ISAM2(parameters));
 	//Vector3 translation(init_x, init_y, init_z);
 
+    //add earth center pose
+    Pose3 pose_earth_center(Rot3(), g_ptEarthCore);
+    Vector6 noise_earth;
+    noise_earth << 0.000001, 0.000001, 0.000001, 0.000001, 0.000001, 0.000001;
+    LaserLoopClosure::Diagonal::shared_ptr covariance_earth(
+        LaserLoopClosure::Diagonal::Sigmas(noise_earth));
+    NonlinearFactorGraph new_factor_;
+    Values new_value_;
+    new_factor_.add(MakePriorFactor(pose_earth_center, covariance_earth));
+    new_value_.insert(key_, pose_earth_center);
+
+    isam_->update(new_factor_, new_value_);
+    values_ = isam_->calculateEstimate();
+    values_.print();
+    key_++;
+
 	// Set the initial position.
 	gtsam::Point3 translation(init_x, init_y, init_z);
 	Rot3 rotation(Rot3::RzRyRx(init_roll, init_pitch, init_yaw));
@@ -125,9 +143,142 @@ bool LaserLoopClosure::LoadParameters() {
 	key_++;
 	// Set the initial odometry.
 	odometry_ = Pose3::identity();
+
 	return true;
 }
 
+#include <gtsam/nonlinear/Marginals.h>
+
+bool LaserLoopClosure::AddGravityFactor(const gu::Transform3& delta,
+        const LaserLoopClosure::Mat66& covariance, unsigned int* key,
+        geometry_utils::Vec3d gravity)
+{
+  if (key == NULL) {
+    return false;
+  }
+  // Append the new odometry.
+  Pose3 new_odometry = ToGtsam(delta);
+
+  NonlinearFactorGraph new_factor;
+  Values new_value;
+  new_factor.add(MakeBetweenFactor(new_odometry, ToGtsam(covariance)));
+
+  Pose3 last_pose = values_.at<Pose3>(key_ - 1);
+  new_value.insert(key_, last_pose.compose(new_odometry));
+
+  //Gravity factor
+//  Eigen::Matrix3d rot =
+//  Eigen::AngleAxisd(0.0 / 180.0 * M_PI, Eigen::Vector3d::UnitZ()) *//yaw
+//  Eigen::AngleAxisd(dRoll / 180.0 * M_PI, Eigen::Vector3d::UnitX()) *//roll
+//  Eigen::AngleAxisd(dPitch / 180.0 * M_PI, Eigen::Vector3d::UnitY()).matrix();//pitch
+//  Rot3 rot_(rot(0,0), rot(0,1), rot(0,2),
+//            rot(1,0), rot(1,1), rot(1,2),
+//            rot(2,0), rot(2,1), rot(2,2));
+//  double dRoll_ = rot_.roll();
+//  double dPitch_ = rot_.pitch();
+//  double dYaw_ = rot_.yaw();
+
+//  Vector6 noise;
+//  noise << 0.00001, 0.00001, 0.00001, 0.00001, 0.00001, 0.01;
+//  LaserLoopClosure::Diagonal::shared_ptr covariance_(
+//      LaserLoopClosure::Diagonal::Sigmas(noise));
+//  Pose3 pose_now_ = last_pose.compose(new_odometry);
+//  dYaw_ = pose_now_.rotation().yaw();
+//  cout << "yaw: " << dYaw_ << endl;
+//  Rot3 rot_1 = Rot3::Ypr(dYaw_, dPitch_, dRoll_);
+//  cout << "rot_1: " << rot_1 << endl;
+//  printf("%.3f, %.3f, %.3f\n", dRoll_/M_PI*180.0, dPitch_/M_PI*180.0, dYaw_/M_PI*180.0);
+//  Pose3 pose(rot_1, pose_now_.translation());
+//  new_factor.add(MakePriorFactor(pose, covariance_));
+//  cout << "Add gravity:" << endl;
+//  cout << pose << endl;
+//  printf("%.3f, %.3f, %.3f\n", dRoll_/M_PI*180.0, dPitch_/M_PI*180.0, dYaw_/M_PI*180.0);
+//  getchar();
+
+  Pose3 pose_new = last_pose.compose(new_odometry);
+  pose_new.print("pose init:\n");
+  printf("%.3f, %.3f, %.3f\n", pose_new.rotation().roll()/M_PI*180.0,pose_new.rotation().pitch()/M_PI*180.0,pose_new.rotation().yaw()/M_PI*180.0);
+  gtsam::Unit3 measurement3D(gravity(0), gravity(1), gravity(2));
+  measurement3D.print("measurement3D");
+  static gtsam::SharedNoiseModel model3D(gtsam::noiseModel::Isotropic::Sigma(2, 0.004));
+  gtsam::BearingFactor<Pose3, Pose3> factor3D(key_, 0, measurement3D, model3D);
+  new_factor.add(factor3D);
+
+  // Update ISAM2.
+//  cout << "update start" << endl;
+  isam_->update(new_factor, new_value);
+//  cout << "update end" << endl;
+  values_ = isam_->calculateEstimate();
+
+  Eigen::Matrix<double, 6, 6> error = isam_->marginalCovariance(key_);
+  cout << "error:" << endl << error  << endl;
+  gtsam::VectorValues vvs = isam_->getDelta();
+  cout << "error1: " << isam_->error(vvs) << endl;
+
+//  values_.insert(new_value);
+  gtsam::Pose3 aa = values_.at<gtsam::Pose3>(key_);
+  aa.print("pose update:\n");
+  printf("%.3f, %.3f, %.3f\n", aa.rotation().roll()/M_PI*180.0,aa.rotation().pitch()/M_PI*180.0,aa.rotation().yaw()/M_PI*180.0);
+
+//  Pose3 pose_now = values_.at<Pose3>(key_);
+//  pcl::PointXYZRGB pt;
+//  pt.x = float(pose_now.translation().x());
+//  pt.y = float(pose_now.translation().y());
+//  pt.z = float(pose_now.translation().z());
+//  pt.r = 255;
+//  pt.g = 0;
+//  pt.b = 0;
+//  m_track.push_back(pt);
+
+  // Assign output and get ready to go again!
+  *key = key_++;
+
+
+
+  // Is the odometry translation large enough to add a new keyframe to the graph?
+//  odometry_ = odometry_.compose(new_odometry);
+//  if (odometry_.translation().norm() > translation_threshold_) {
+//      odometry_ = Pose3::identity();
+//      return true;
+//  }
+  m_track.clear();
+  for (const auto& keyed_pose : values_)
+  {
+      const unsigned int key = keyed_pose.key;
+
+      if (!keyed_scans_.count(key))
+          continue;
+      if (key == 0)
+          continue;
+
+      Pose3 pose_now = values_.at<Pose3>(key);
+      pcl::PointXYZRGB pt;
+      pt.x = float(pose_now.translation().x());
+      pt.y = float(pose_now.translation().y());
+      pt.z = float(pose_now.translation().z());
+      pt.r = 255;
+      pt.g = 0;
+      pt.b = 0;
+      m_track.push_back(pt);
+  }
+  m_LoopLines.clear();
+  for (unsigned int i = 0; i < loop_edges_.size(); i++)
+  {
+      const gu::Transform3 pose1 = ToGu(values_.at<Pose3>(loop_edges_[i].first));
+      const gu::Transform3 pose2 = ToGu(values_.at<Pose3>(loop_edges_[i].second));
+      pcl::PointXYZ pt0, pt1;
+      pt0.x = pose1.translation(0);
+      pt0.y = pose1.translation(1);
+      pt0.z = pose1.translation(2);
+      pt1.x = pose2.translation(0);
+      pt1.y = pose2.translation(1);
+      pt1.z = pose2.translation(2);
+      m_LoopLines.push_back(std::make_pair(pt0, pt1));
+  }
+
+    getchar();
+  return false;
+}
 
 bool LaserLoopClosure::AddBetweenFactor(
     const gu::Transform3& delta, const LaserLoopClosure::Mat66& covariance, unsigned int* key) {
@@ -145,11 +296,20 @@ bool LaserLoopClosure::AddBetweenFactor(
   Pose3 last_pose = values_.at<Pose3>(key_ - 1);
   new_value.insert(key_, last_pose.compose(new_odometry));
 
+  Pose3 pose_now_ = last_pose.compose(new_odometry);
+  double dRoll_ = pose_now_.rotation().roll();
+  double dPitch_ = pose_now_.rotation().pitch();
+  double dYaw_ = pose_now_.rotation().yaw();
+//  gtsam::VectorValues vvs = isam_->getDelta();
+//  double dError = isam_->error(vvs);
+  printf("roll:%.3f, pitch:%.3f, yaw:%.3f\n", dRoll_/M_PI*180,
+         dPitch_/M_PI*180, dYaw_/M_PI*180);
+//  cout << dError << endl;
  
   // Update ISAM2.
-  cout << "update start" << endl;
+//  cout << "update start" << endl;
   isam_->update(new_factor, new_value);
-  cout << "update end" << endl;
+//  cout << "update end" << endl;
   values_ = isam_->calculateEstimate();
 //  values_.insert(new_value);
 
@@ -256,11 +416,11 @@ bool LaserLoopClosure::FindLoopClosures(
 // 		values.print(sssss);
 
 //		getchar();
-		cout << "update start" << endl;
+//		cout << "update start" << endl;
 //        isam_->update(new_factor, Values(), gtsam::FactorIndices(),
 //			boost::none, boost::none, boost::none, true);
         isam_->update(new_factor, Values());
-		cout << "update end" << endl;
+//		cout << "update end" << endl;
 		m_Log << "update end:" << other_key << endl;
 		m_Log.flush();
         closed_loop = true;
@@ -275,6 +435,10 @@ bool LaserLoopClosure::FindLoopClosures(
 // 		pt_.z = pose2.translation(2);
 // 		pt_.g = 255.0;
 // 		m_closureValid.push_back(pt_);
+        m_Log << "LoopClousure:" <<
+              scan1->header.seq << "," << scan1->header.stamp << "," <<
+              scan2->header.seq << "," << scan2->header.stamp << "," <<
+              delta.translation.Norm() << endl;
       }
 	  pcl::PointXYZRGB pt_;
 	  pt_.x = pose2.translation(0);
@@ -299,6 +463,8 @@ bool LaserLoopClosure::FindLoopClosures(
 
 		  if (!keyed_scans_.count(key))
 			  continue;
+          if (key == 0)
+              continue;
 
 		  Pose3 pose_now = values_.at<Pose3>(key);
 		  pcl::PointXYZRGB pt;

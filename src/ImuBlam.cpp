@@ -20,6 +20,10 @@ CImuBlam::~CImuBlam()
 
 int CImuBlam::ReadFile(std::string szFilePathName)
 {
+    if (szFilePathName.back() != "/" && szFilePathName.back() != "\\")
+    {
+        szFilePathName += "/";
+    }
 	cout << "Reading:" << szFilePathName << endl;
 	ifstream fs((szFilePathName + "Pose.txt").c_str());
 	if (!fs.is_open())
