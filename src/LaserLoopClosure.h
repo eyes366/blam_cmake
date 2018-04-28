@@ -47,6 +47,7 @@ class LaserLoopClosure {
   bool AddGravityFactor(const geometry_utils::Transform3& delta,
                         const Mat66& covariance, unsigned int* key,
                         geometry_utils::Vec3d gravity);
+  int UpdateDispInfo();
 
  private:
   bool LoadParameters();
@@ -119,6 +120,9 @@ public:
   pcl::PointCloud<pcl::PointXYZRGB> m_track;
   pcl::PointCloud<pcl::PointXYZRGB> m_closureCondidates;
   pcl::PointCloud<pcl::PointXYZRGB> m_closureValid;
+  std::vector<geometry_utils::Transform3> m_gravityLocate;
+  std::vector<unsigned int> m_gravityInds;
+  bool m_bIsLoopInfoUpdate;
   std::ofstream m_Log;
 };
 

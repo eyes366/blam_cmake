@@ -37,12 +37,21 @@ LoopClosureOpr::~LoopClosureOpr()
 
 void LoopClosureOpr::viewerPsycho(pcl::visualization::PCLVisualizer& viewer)
 {
+    if (!m_LaserLoopClosureOpr.m_bIsLoopInfoUpdate)
+    {
+        return;
+    }
+    m_LaserLoopClosureOpr.m_bIsLoopInfoUpdate = false;
+    pcl::visualization::ShapeActorMapPtr ShapeMap = viewer.getShapeActorMap();
+    pcl::visualization::CloudActorMapPtr CloudMap = viewer.getCloudActorMap();
  	std::vector<LaserLoopClosure::ConstraitLine>& LoopLines = m_LaserLoopClosureOpr.m_LoopLines;
  	for (unsigned int i = 0; i < LoopLines.size(); i++)
  	{
  		char szItem[1024] = { 0 };
  		sprintf(szItem, "Line%d", i);
-// 		if (viewer.contains(szItem))
+//        if (viewer.contains(szItem))
+        if (ShapeMap->find (szItem) != ShapeMap->end () ||
+            CloudMap->find (szItem) != CloudMap->end ())
  		{
  			viewer.removeShape(szItem);
  		}
@@ -50,9 +59,27 @@ void LoopClosureOpr::viewerPsycho(pcl::visualization::PCLVisualizer& viewer)
  			0.0, 255.0, 0.0, szItem);
  	}
 
+    std::vector<geometry_utils::Transform3> gravitys = m_LaserLoopClosureOpr.m_gravityLocate;
+    for (unsigned int i = 0; i < gravitys.size(); i++)
+    {
+        Eigen::Matrix<double, 3, 3> R = gravitys[i].rotation.Eigen();
+        Eigen::Matrix<double, 3, 1> T = gravitys[i].translation.Eigen();
+        Eigen::Matrix4d tf = Eigen::Matrix4d::Identity();;
+        tf.block(0, 0, 3, 3) = R;
+        tf.block(0, 3, 3, 1) = T;
+        Eigen::Transform<double, 3, Eigen::Affine> ICP_Transform =
+                Eigen::Transform<double, 3, Eigen::Affine>(tf);
+        char szItem[1024] = { 0 };
+        sprintf(szItem, "gravity%d", i);
+        viewer.removeCoordinateSystem(szItem);
+        viewer.addCoordinateSystem(5.0, (Eigen::Affine3f)ICP_Transform, szItem);
+    }
+
 // 	if (viewer.contains("m_closureCondidates"))
+    if (ShapeMap->find ("m_closureCondidates") != ShapeMap->end () ||
+        CloudMap->find ("m_closureCondidates") != CloudMap->end ())
  	{
- 		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3.0, "m_closureCondidates");
+        viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3.0, "m_closureCondidates");
  	}
 }
 
@@ -188,6 +215,7 @@ bool LoopClosureOpr::HandleLoopClosures(const pcl::PointCloud<pcl::PointXYZI>::P
         {
             geometry_utils::Vec3d gravity(m_GravityDatas[m_nGravityInd][1],
                     m_GravityDatas[m_nGravityInd][2],m_GravityDatas[m_nGravityInd][3]);
+//            geometry_utils::Vec3d gravity(0,0,-1);
             m_LaserLoopClosureOpr.AddGravityFactor(deltaRT,
                                                    covariance, &pose_key,gravity);
             printf("Time:%lld\n", scan->header.stamp);
