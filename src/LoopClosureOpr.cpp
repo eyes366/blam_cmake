@@ -57,6 +57,7 @@ void LoopClosureOpr::viewerPsycho(pcl::visualization::PCLVisualizer& viewer)
  		}
  		viewer.addLine<pcl::PointXYZ, pcl::PointXYZ>(LoopLines[i].first, LoopLines[i].second,
  			0.0, 255.0, 0.0, szItem);
+//        viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 3.0, szItem);
  	}
 
     std::vector<geometry_utils::Transform3> gravitys = m_LaserLoopClosureOpr.m_gravityLocate;

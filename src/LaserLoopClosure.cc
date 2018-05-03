@@ -151,6 +151,7 @@ bool LaserLoopClosure::LoadParameters() {
 int LaserLoopClosure::UpdateDispInfo()
 {
     m_track.clear();
+    m_poses.clear();
     for (const auto& keyed_pose : values_)
     {
         const unsigned int key = keyed_pose.key;
@@ -169,6 +170,7 @@ int LaserLoopClosure::UpdateDispInfo()
         pt.g = 0;
         pt.b = 0;
         m_track.push_back(pt);
+        m_poses.push_back(pose_now);
     }
     m_LoopLines.clear();
     for (unsigned int i = 0; i < loop_edges_.size(); i++)
@@ -189,6 +191,8 @@ int LaserLoopClosure::UpdateDispInfo()
     {
         const gu::Transform3 pose = ToGu(values_.at<Pose3>(m_gravityInds[i]));
         m_gravityLocate.push_back(pose);
+        geometry_utils::Vec3d YPR = pose.rotation.GetEulerZYX();
+        cout << "m_gravityInds:" << i << ":" << YPR/M_PI*180.0 << endl;
 
 //        Pose3 pose_now = values_.at<Pose3>(m_gravityInds[i]);
 //        pcl::PointXYZRGB pt;
@@ -256,7 +260,7 @@ bool LaserLoopClosure::AddGravityFactor(const gu::Transform3& delta,
   printf("%.3f, %.3f, %.3f\n", pose_new.rotation().roll()/M_PI*180.0,pose_new.rotation().pitch()/M_PI*180.0,pose_new.rotation().yaw()/M_PI*180.0);
   gtsam::Unit3 measurement3D(gravity(0), gravity(1), gravity(2));
   measurement3D.print("measurement3D");
-  static gtsam::SharedNoiseModel model3D(gtsam::noiseModel::Isotropic::Sigma(2, 0.004));
+  static gtsam::SharedNoiseModel model3D(gtsam::noiseModel::Isotropic::Sigma(2, 0.063245553));
   gtsam::BearingFactor<Pose3, Pose3> factor3D(key_, 0, measurement3D, model3D);
   new_factor.add(factor3D);
   m_gravityInds.push_back(key_);
@@ -405,6 +409,10 @@ bool LaserLoopClosure::FindLoopClosures(
   const PointCloud::ConstPtr scan1 = keyed_scans_[key];
 
   bool closed_loop = false;
+  vector<gu::Transform3> valid_delta;
+  vector<LaserLoopClosure::Mat66> valid_covariance;
+  vector<float> valid_score;
+  vector<unsigned int> valid_other_keys;
   for (const auto& keyed_pose : values_) {
     const unsigned int other_key = keyed_pose.key;
 	
@@ -430,13 +438,19 @@ bool LaserLoopClosure::FindLoopClosures(
 
       gu::Transform3 delta;
       LaserLoopClosure::Mat66 covariance;
-      if (PerformICP(scan1, scan2, pose1, pose2, &delta, &covariance)) 
+      float score;
+      if (PerformICP(scan1, scan2, pose1, pose2, &delta, &covariance, score))
 	  {
+          valid_delta.push_back(delta);
+          valid_covariance.push_back(covariance);
+          valid_score.push_back(score);
+          valid_other_keys.push_back(other_key);
+
 		  m_Log << "Loop:" << other_key << endl;
 		  m_Log.flush();
-        NonlinearFactorGraph new_factor;
-        new_factor.add(BetweenFactor<Pose3>(key, other_key, ToGtsam(delta),
-                                            ToGtsam(covariance)));
+//        NonlinearFactorGraph new_factor;
+//        new_factor.add(BetweenFactor<Pose3>(key, other_key, ToGtsam(delta),
+//                                            ToGtsam(covariance)));
 		m_Log << "update start:" << other_key << endl;
 		m_Log.flush();
 		m_Log << "value exist: " << key << ":" << isam_->valueExists(key) << endl;
@@ -449,15 +463,15 @@ bool LaserLoopClosure::FindLoopClosures(
 //		cout << "update start" << endl;
 //        isam_->update(new_factor, Values(), gtsam::FactorIndices(),
 //			boost::none, boost::none, boost::none, true);
-        isam_->update(new_factor, Values());
+//        isam_->update(new_factor, Values());
 //		cout << "update end" << endl;
 		m_Log << "update end:" << other_key << endl;
 		m_Log.flush();
-        closed_loop = true;
-        last_closure_key_ = key;
+//        closed_loop = true;
+//        last_closure_key_ = key;
 
-        loop_edges_.push_back(std::make_pair(key, other_key));
-        closure_keys->push_back(other_key);
+//        loop_edges_.push_back(std::make_pair(key, other_key));
+//        closure_keys->push_back(other_key);
 
 // 		pcl::PointXYZRGB pt_;
 // 		pt_.x = pose2.translation(0);
@@ -478,6 +492,31 @@ bool LaserLoopClosure::FindLoopClosures(
 	  m_closureCondidates.push_back(pt_);
     }
   }
+
+  int best_ind = -1;
+  float best_score = 100000.f;
+  for (unsigned int i = 0; i < valid_delta.size(); i++)
+  {
+        if (valid_score[i] <= best_score)
+        {
+            best_score = valid_score[i];
+            best_ind = i;
+        }
+  }
+  if (best_ind >= 0)
+  {
+      NonlinearFactorGraph new_factor;
+      new_factor.add(BetweenFactor<Pose3>(key, valid_other_keys[best_ind], ToGtsam(valid_delta[best_ind]),
+                                          ToGtsam(valid_covariance[best_ind])));
+      isam_->update(new_factor, Values());
+      closed_loop = true;
+      last_closure_key_ = key;
+      loop_edges_.push_back(std::make_pair(key, valid_other_keys[best_ind]));
+      closure_keys->push_back(valid_other_keys[best_ind]);
+      cout << "best closed loop: " << key << "-" << valid_other_keys[best_ind]
+              << "  scroe:" << valid_score[best_ind] << endl;
+  }
+
   m_Log << "calculateEstimate: start" << endl;
   m_Log.flush();
   values_ = isam_->calculateEstimate();
@@ -628,7 +667,8 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr& scan1,
                                   const gu::Transform3& pose1,
                                   const gu::Transform3& pose2,
                                   gu::Transform3* delta,
-                                  LaserLoopClosure::Mat66* covariance) {
+                                  LaserLoopClosure::Mat66* covariance, float& score) {
+    score = 100.0;
   if (delta == NULL || covariance == NULL) {
     return false;
   }
@@ -677,6 +717,7 @@ bool LaserLoopClosure::PerformICP(const PointCloud::ConstPtr& scan1,
     return false;
   stringstream ss;
   ss << "getFitnessScore: " << icp.getFitnessScore() << "     " << max_tolerable_fitness_ << std::endl;
+  score = icp.getFitnessScore();
   std::cout << ss.str();
   m_Log << ss.str();
   m_Log.flush();

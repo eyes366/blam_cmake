@@ -68,7 +68,7 @@ class LaserLoopClosure {
                   const PointCloud::ConstPtr& scan2,
                   const geometry_utils::Transform3& pose1,
                   const geometry_utils::Transform3& pose2,
-                  geometry_utils::Transform3* delta, Mat66* covariance);
+                  geometry_utils::Transform3* delta, Mat66* covariance, float& score);
 
   // Node name.
   std::string name_;
@@ -117,6 +117,7 @@ public:
 
 	std::vector<ConstraitLine> m_LoopLines;
 
+    std::vector<gtsam::Pose3> m_poses;
   pcl::PointCloud<pcl::PointXYZRGB> m_track;
   pcl::PointCloud<pcl::PointXYZRGB> m_closureCondidates;
   pcl::PointCloud<pcl::PointXYZRGB> m_closureValid;
